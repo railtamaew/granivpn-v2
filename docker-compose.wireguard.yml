@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  # WireGuard сервер в Европе
+  wireguard-europe:
+    image: linuxserver/wireguard:latest
+    container_name: granivpn-europe
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+      - SERVERURL=auto
+      - SERVERPORT=51820
+      - PEERS=10
+      - PEERDNS=auto
+      - INTERNAL_SUBNET=10.0.1.0/24
+      - ALLOWEDIPS=0.0.0.0/0
+      - PERSISTENTKEEPALIVE_PEERS=
+      - LOG_CONFS=true
+    volumes:
+      - ./wireguard/europe:/config
+      - /lib/modules:/lib/modules
+    ports:
+      - "51820:51820/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    restart: unless-stopped
+    networks:
+      - granivpn-network
+
+  # WireGuard сервер в Азии
+  wireguard-asia:
+    image: linuxserver/wireguard:latest
+    container_name: granivpn-asia
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Tokyo
+      - SERVERURL=auto
+      - SERVERPORT=51821
+      - PEERS=10
+      - PEERDNS=auto
+      - INTERNAL_SUBNET=10.0.2.0/24
+      - ALLOWEDIPS=0.0.0.0/0
+      - PERSISTENTKEEPALIVE_PEERS=
+      - LOG_CONFS=true
+    volumes:
+      - ./wireguard/asia:/config
+      - /lib/modules:/lib/modules
+    ports:
+      - "51821:51821/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    restart: unless-stopped
+    networks:
+      - granivpn-network
+
+  # WireGuard сервер в Америке
+  wireguard-america:
+    image: linuxserver/wireguard:latest
+    container_name: granivpn-america
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - SERVERURL=auto
+      - SERVERPORT=51822
+      - PEERS=10
+      - PEERDNS=auto
+      - INTERNAL_SUBNET=10.0.3.0/24
+      - ALLOWEDIPS=0.0.0.0/0
+      - PERSISTENTKEEPALIVE_PEERS=
+      - LOG_CONFS=true
+    volumes:
+      - ./wireguard/america:/config
+      - /lib/modules:/lib/modules
+    ports:
+      - "51822:51822/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    restart: unless-stopped
+    networks:
+      - granivpn-network
+
+  # Мониторинг WireGuard серверов
+  wireguard-monitor:
+    image: nginx:alpine
+    container_name: granivpn-monitor
+    ports:
+      - "8080:80"
+    volumes:
+      - ./wireguard/monitor:/usr/share/nginx/html
+      - ./wireguard/monitor/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - wireguard-europe
+      - wireguard-asia
+      - wireguard-america
+    restart: unless-stopped
+    networks:
+      - granivpn-network
+
+networks:
+  granivpn-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

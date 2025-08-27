@@ -1,0 +1,19 @@
+services:
+  api:
+    build: ./backend
+    container_name: granivpn_api
+    environment:
+      - DATABASE_URL=sqlite:///./granivpn.db
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=your-secret-key-here
+      - DOMAIN=granivpn.com
+      - API_URL=http://localhost:8000
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:8080
+      - WIREGUARD_SERVER_IP=94.131.107.227
+      - WIREGUARD_PORT=51820
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+
+
