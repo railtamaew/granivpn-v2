@@ -1,0 +1,116 @@
+name: 🚀 Simple Deploy to DigitalOcean
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔐 Deploy to DigitalOcean Droplet
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.DROPLET_HOST }}
+        username: ${{ secrets.DROPLET_USER }}
+        key: ${{ secrets.DROPLET_SSH_KEY }}
+        port: ${{ secrets.DROPLET_PORT }}
+        script: |
+          echo "🚀 Начинаю развертывание GraniVPN..."
+          
+          # Переходим в директорию проекта
+          cd ~/granivpn-v2 || cd /opt/granivpn || mkdir -p ~/granivpn-v2 && cd ~/granivpn-v2
+          
+          # Останавливаем старые контейнеры
+          echo "�� Останавливаю старые контейнеры..."
+          docker compose -f docker-compose.production.yml down 2>/dev/null || echo "Контейнеры не запущены"
+          
+          # Очищаем старые образы
+          echo "🧹 Очищаю старые образы..."
+          docker system prune -f
+          
+          # Клонируем/обновляем код
+          if [ -d ".git" ]; then
+            echo "📥 Обновляю код..."
+            git fetch origin
+            git reset --hard origin/main
+          else
+            echo "📥 Клонирую код..."
+            git clone https://github.com/railtamaew/granivpn-v2.git .
+          fi
+          
+          # Создаем необходимые директории
+          echo "📁 Создаю директории..."
+          mkdir -p backend/logs wireguard-configs nginx/ssl nginx/sites-enabled
+          
+          # Копируем переменные окружения
+          if [ -f "env.production" ]; then
+            echo "�� Копирую переменные окружения..."
+            cp env.production .env
+          else
+            echo "⚠️  Создаю базовые переменные окружения..."
+            cat > .env << EOF
+          DB_PASSWORD=granivpn_secure_password_2024
+          SECRET_KEY=granivpn_super_secret_key_change_this_in_production_2024
+          ENVIRONMENT=production
+          EOF
+          fi
+          
+          # Собираем и запускаем контейнеры
+          echo "�� Собираю и запускаю контейнеры..."
+          docker compose -f docker-compose.production.yml up --build -d
+          
+          # Ждем запуска
+          echo "⏳ Ждем запуска сервисов..."
+          sleep 30
+          
+          # Проверяем статус
+          echo "📊 Проверяю статус сервисов..."
+          docker compose -f docker-compose.production.yml ps
+          
+          # Проверяем работоспособность
+          echo "🔍 Проверяю работоспособность..."
+          if curl -s http://localhost:8000/health > /dev/null; then
+            echo "✅ Backend API работает"
+          else
+            echo "❌ Backend API не отвечает"
+          fi
+          
+          if curl -s http://localhost:3000 > /dev/null; then
+            echo "✅ Admin Panel работает"
+          else
+            echo "❌ Admin Panel не отвечает"
+          fi
+          
+          if curl -s http://localhost:8080 > /dev/null; then
+            echo "✅ Mobile App работает"
+          else
+            echo "❌ Mobile App не отвечает"
+          fi
+          
+          echo ""
+          echo "=== 🎉 РАЗВЕРТЫВАНИЕ ЗАВЕРШЕНО ==="
+          echo "🔧 Backend API: http://${{ secrets.DROPLET_HOST }}:8000"
+          echo "��️ Admin Panel: http://${{ secrets.DROPLET_HOST }}:3000"
+          echo "📱 Mobile App: http://${{ secrets.DROPLET_HOST }}:8080"
+          echo "�� API Docs: http://${{ secrets.DROPLET_HOST }}:8000/docs"
+          echo ""
+          echo "Для настройки домена и SSL следуйте инструкции в DIGITALOCEAN_DEPLOYMENT.md"
+          
+    - name: ✅ Deploy Success
+      if: success()
+      run: |
+        echo "🚀 GraniVPN успешно развернут в DigitalOcean!"
+        echo "Время развертывания: $(date)"
+        
+    - name: ❌ Deploy Failed
+      if: failure()
+      run: |
+        echo "❌ Ошибка развертывания GraniVPN"
+        echo "Проверьте логи выше для диагностики"
+        echo "Время ошибки: $(date)"
